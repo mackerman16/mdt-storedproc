@@ -6,7 +6,7 @@
  * Parameters:
  *      @table NVARCHAR(250) - the name of the target table we wish to enter the data into
  *      @dbname NVARCHAR(50) - the name of the client database we wish to pull the data from
- *      @lastRuntimeForClient DATETIME - the last time we pulled data from the client (@dbname)
+ *      @lastRuntimeForClient DATETIME - the last time we captured data (@dbname)
  *
  * Returns:
  *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the MemberEnrollment data from a specific client and insert it into a target table
@@ -38,6 +38,7 @@ BEGIN
                                                             ,InaSYS_ETL_Timestamp
                                                             ,MemberId
                                                             ,MemberEnrollment_RUNNO_INSERT
+                                                            ,CONCAT(SYS_SourceDB,' + ' - ' + 'Member_VID)
                                                    FROM ' + @dbname + N'.dm.TDMA_1Fct_MemberEnrollment
                                                    WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                           AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
@@ -80,13 +81,13 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
         BEGIN
             BEGIN TRY
 
-                -- Capturing the last time we ran the stored procedures.
+                -- Checking the last time we captured data.
                 DECLARE @lastRuntime AS DATETIME
                 SELECT @lastRuntime = MASTER_LastRunTimestamp
                                       FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
                                       WHERE ID = 1;
 
-                -- Inserting records into temporary table.
+                -- Calling our function to generate the insert statements to move the records to a temporary table.
                 DECLARE @insert AS NVARCHAR(4000) = dw.MemberEnrollment_GenerateInsert(@tempTable, @dbname, @lastRuntime)
                 EXECUTE (@insert)
 
@@ -130,9 +131,10 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
                                                                         ,InaSYS_ETL_Timestamp
                                                                         ,MemberId
                                                                         ,MemberEnrollment_RUNNO_INSERT
+                                                                        ,CONCAT(SYS_SourceDB,' + ' - ' + 'Member_VID)
                                                                  FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
-    
+
 GO
 
 EXEC dw.sp_Populate_MemberEnrollment
