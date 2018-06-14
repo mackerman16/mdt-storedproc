@@ -11,7 +11,7 @@
  * Returns:
  *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the MemberEnrollment data from a specific client and insert it into a target table
  */
-CREATE FUNCTION dw.MemberEnrollment_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntimeForClient DATETIME) RETURNS NVARCHAR(4000) AS
+CREATE FUNCTION dw.MemberEnrollment_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
 BEGIN
 
     -- The insert statement used to capture the MemberEnrollment data and insert it into a target table.
@@ -39,7 +39,7 @@ BEGIN
                                                             ,MemberId
                                                             ,MemberEnrollment_RUNNO_INSERT
                                                    FROM ' + @dbname + N'.dm.TDMA_1Fct_MemberEnrollment
-                                                   WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntimeForClient, 21) + N''')
+                                                   WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                           AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
 END
@@ -58,12 +58,6 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
 
     -- Target table.
     DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Fct_MemberEnrollment';
-
-    -- Temporary table used during the process of replacing the last run timestamp for the client and tables we're running the procedure on.
-    DECLARE @tempLastRunTimestampTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_LastRunTimestamp';
-
-    -- Target table for our new last run timestamps for the client and tables we're running the procedure on.
-    DECLARE @targetLastRunTimestampTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.LastRunTimestamp';
 
     -- The variable we will momentarily store each client database name in as we loop through our cursor.
     DECLARE @dbname AS NVARCHAR(50)
@@ -86,20 +80,15 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
         BEGIN
             BEGIN TRY
 
-                -- Capturing the last time we ran this for the current client.
-                DECLARE @lastRuntimeForClient AS DATETIME
-                SELECT @lastRuntimeForClient = MAX(SYS_ETL_Timestamp)
-                                               FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
-                                               WHERE SYS_SourceDB = @dbname AND Table_Name = @sourceTable;
+                -- Capturing the last time we ran the stored procedures.
+                DECLARE @lastRuntime AS DATETIME
+                SELECT @lastRuntime = MASTER_LastRunTimestamp
+                                      FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
+                                      WHERE ID = 1;
 
                 -- Inserting records into temporary table.
-                DECLARE @insert AS NVARCHAR(4000) = dw.MemberEnrollment_GenerateInsert(@tempTable, @dbname, @lastRuntimeForClient)
+                DECLARE @insert AS NVARCHAR(4000) = dw.MemberEnrollment_GenerateInsert(@tempTable, @dbname, @lastRuntime)
                 EXECUTE (@insert)
-
-                -- Capturing the timestamp of this run and entering it into a temp table.
-                DECLARE @insertLastRunIntoTempTable AS NVARCHAR(4000) = N'INSERT INTO ' + @tempLastRunTimestampTable + 
-                                                                        N' VALUES (''' + @dbname + N''', ''' + @sourceTable + N''', GETDATE());'
-                EXECUTE (@insertLastRunIntoTempTable)
 
             END TRY
 
@@ -143,23 +132,7 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
                                                                         ,MemberEnrollment_RUNNO_INSERT
                                                                  FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
-
-    -- Deleting the last run timestamps for the clients we just ran the procedure on.
-    DECLARE @deleteRelevantLastRunTimestamps AS NVARCHAR(4000) = N'DELETE ' + @targetLastRunTimestampTable + 
-                                                                 N' FROM ' + @targetLastRunTimestampTable + N' a
-                                                                 INNER JOIN ' + @tempLastRunTimestampTable + N' b ON (a.SYS_SourceDB = b.SYS_SourceDB AND a.Table_Name = b.Table_Name);'
-    EXECUTE (@deleteRelevantLastRunTimestamps)
-
-    -- Inserting the new run timestamps for the clients we just ran the procedure on.
-    DECLARE @insertLastRun AS NVARCHAR(4000) = N'INSERT INTO ' + @targetLastRunTimestampTable + 
-                                               N' SELECT SYS_SourceDB, Table_Name, SYS_ETL_Timestamp
-                                                 FROM ' + @tempLastRunTimestampTable + N';'
-    EXECUTE(@insertLastRun)
-
-    -- Clearing the temp table for LastRunTimestamp.
-    DECLARE @truncateTempLastRunTimestamp AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempLastRunTimestampTable + N';'
-    EXECUTE(@truncateTempLastRunTimestamp)
-
+    
 GO
 
 EXEC dw.sp_Populate_MemberEnrollment
