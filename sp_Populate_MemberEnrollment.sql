@@ -60,6 +60,9 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
     -- Target table.
     DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Fct_MemberEnrollment';
 
+    -- Temporary table used during data quality validation.
+    DECLARE @tempRunDataTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_RunData';
+
     -- The variable we will momentarily store each client database name in as we loop through our cursor.
     DECLARE @dbname AS NVARCHAR(50)
 
@@ -92,7 +95,7 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
                               SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
                                                           WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
-                              INSERT INTO [xAnalytics_DW].[dw].[TEMP_RunData]
+                              INSERT INTO ' + @tempRunDataTable + N'
                               VALUES (''' + @dbname + N''', @newRecordsCounted);'
                 EXECUTE (@countAndTrackNewRecords)
 
@@ -157,7 +160,7 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
     SELECT @newRecordCount = SUM(Records_Captured) FROM [xAnalytics_DW].[dw].[TEMP_RunData];
 
     -- Truncate the temp table for RunData since it doesn't track the specific table and will be irrelevant since we run stored procedures back to back for every table.
-    DECLARE @truncateRunDataTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE xAnalytics_DW.dw.TEMP_RunData';
+    DECLARE @truncateRunDataTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempRunDataTable + N';'
     EXECUTE (@truncateRunDataTempTable)
 
     -- (For validation) If the amount of added target records matches the expected amount, insert the record with a 'Y' for the 'Passed' column. Else, 'N'.
