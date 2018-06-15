@@ -63,6 +63,12 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
     -- The variable we will momentarily store each client database name in as we loop through our cursor.
     DECLARE @dbname AS NVARCHAR(50)
 
+    -- Checking the last time we captured data.
+    DECLARE @lastRuntime AS DATETIME
+    SELECT @lastRuntime = MASTER_LastRunTimestamp
+                          FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
+                          WHERE ID = 1;
+
     -- Truncate the temp table for MemberEnrollment.
     DECLARE @truncateTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempTable + N';'
     EXECUTE (@truncateTempTable)
@@ -80,12 +86,15 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
         
         BEGIN
             BEGIN TRY
-
-                -- Checking the last time we captured data.
-                DECLARE @lastRuntime AS DATETIME
-                SELECT @lastRuntime = MASTER_LastRunTimestamp
-                                      FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
-                                      WHERE ID = 1;
+                -- Checks how many records we should be capturing from MemberEnrollment for each client and stores them in a temporary table.
+                DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
+                            N'DECLARE @newRecordsCounted AS BIGINT;
+                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
+                                                          WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
+                                                                                   AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
+                              INSERT INTO [xAnalytics_DW].[dw].[TEMP_RunData]
+                              VALUES (''' + @dbname + N''', @newRecordsCounted);'
+                EXECUTE (@countAndTrackNewRecords)
 
                 -- Calling our function to generate the insert statements to move the records to a temporary table.
                 DECLARE @insert AS NVARCHAR(4000) = dw.MemberEnrollment_GenerateInsert(@tempTable, @dbname, @lastRuntime)
@@ -111,6 +120,10 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
                                                                   INNER JOIN ' + @tempTable + N' b ON (a.TR_ID = b.TR_ID and a.SYS_SourceDB = b.SYS_SourceDB);'
     EXECUTE (@deleteUpdatedRecordsFromTarget)
 
+    -- (For validation) Counting how many records are in the target before we make additions.
+    DECLARE @targetCountBeforeAdditions AS BIGINT
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberEnrollment;
+
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
                                                                N' SELECT TR_ID
@@ -134,6 +147,34 @@ CREATE PROCEDURE dw.sp_Populate_MemberEnrollment AS
                                                                         ,CONCAT(SYS_SourceDB,' + ' - ' + 'Member_VID)
                                                                  FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
+
+    -- (For validation) Counting how many records are in the target after we make additions.
+    DECLARE @targetCountAfterAdditions AS BIGINT
+    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberEnrollment;
+
+    -- (For validation) Counting how many records are in the temporary RunData table which shows us how many records we should expect to be inserted into the target.
+    DECLARE @newRecordCount AS BIGINT
+    SELECT @newRecordCount = SUM(Records_Captured) FROM [xAnalytics_DW].[dw].[TEMP_RunData];
+
+    -- Truncate the temp table for RunData since it doesn't track the specific table and will be irrelevant since we run stored procedures back to back for every table.
+    DECLARE @truncateRunDataTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE xAnalytics_DW.dw.TEMP_RunData';
+    EXECUTE (@truncateRunDataTempTable)
+
+    -- (For validation) If the amount of added target records matches the expected amount, insert the record with a 'Y' for the 'Passed' column. Else, 'N'.
+    IF (@targetCountAfterAdditions - @targetCountBeforeAdditions) = @newRecordCount
+        INSERT INTO [xAnalytics_DW].[dw].[RunData]
+        VALUES (@sourceTable
+                ,@LastRuntime
+                ,@newRecordCount
+                ,@targetCountAfterAdditions - @targetCountBeforeAdditions
+                ,'Y');
+    ELSE
+        INSERT INTO [xAnalytics_DW].[dw].[RunData]
+        VALUES (@sourceTable
+                ,@LastRuntime
+                ,@newRecordCount
+                ,@targetCountAfterAdditions - @targetCountBeforeAdditions
+                ,'N');
 
 GO
 
