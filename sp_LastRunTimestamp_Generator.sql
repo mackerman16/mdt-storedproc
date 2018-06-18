@@ -1,6 +1,6 @@
 
 /*
- * Stored procedure that sets LastRunTimestamp to tomorrow at midnight.
+ * Stored procedure that sets LastRunTimestamp to today at midnight.
  */ 
 CREATE PROCEDURE dw.sp_LastRunTimestamp_Generator AS
 

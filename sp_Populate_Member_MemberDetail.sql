@@ -144,7 +144,7 @@ CREATE PROCEDURE dw.sp_Populate_Member_MemberDetail AS
 
     -- The cursor used to loop through our list of clients to capture their database name.
     DECLARE dbc CURSOR FOR
-       SELECT SYS_SourceDB FROM xSTP_REPL.dbo.C_Client2
+       SELECT SYS_SourceDB FROM xAnalytics_DW.dw.C_Client
 
     -- Opening our declared cursor.
     OPEN dbc
@@ -186,7 +186,7 @@ CREATE PROCEDURE dw.sp_Populate_Member_MemberDetail AS
     -- Discovers what records are updates (exist in temp and target) and deletes these from target.
     DECLARE @deleteUpdatedRecordsFromTarget AS NVARCHAR(4000) = N'DELETE ' + @targetTable + N' 
                                                                   FROM ' + @targetTable + N' a 
-                                                                  INNER JOIN ' + @tempTable + N' b ON (a.TR_ID = b.TR_ID and a.SYS_SourceDB = b.SYS_SourceDB);'
+                                                                  INNER JOIN ' + @tempTable + N' b ON (a.Member_VID = b.Member_VID and a.SYS_SourceDB = b.SYS_SourceDB);'
     EXECUTE (@deleteUpdatedRecordsFromTarget)
 
     -- (For validation) Counting how many records are in the target before we make additions.
