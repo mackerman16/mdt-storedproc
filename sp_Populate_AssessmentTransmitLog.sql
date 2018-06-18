@@ -262,7 +262,6 @@ CREATE PROCEDURE dw.sp_Populate_AssessmentTransmitLog AS
                    ,@totalSourceUpdateCount
                    ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
                    ,'N');
-
 GO
 
 EXEC dw.sp_Populate_AssessmentTransmitLog

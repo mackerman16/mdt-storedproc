@@ -122,6 +122,9 @@ END
  */ 
 CREATE PROCEDURE dw.sp_Populate_FlexMemberHealthCheckItem AS
 
+    -- (For validation) Captures script start DATETIME
+    DECLARE @startRunTime AS DATETIME = GETDATE();
+
     -- The source table we wish to retrieve the inserts and updates from
     DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Dim_FlexMemberHealthCheckItem';
 
@@ -188,7 +191,18 @@ CREATE PROCEDURE dw.sp_Populate_FlexMemberHealthCheckItem AS
     CLOSE dbc
     DEALLOCATE dbc
 
-    -- Discovers what records are updates (exist in temp and target) and deletes these from target.
+    -- (For validation) Counting how many records are in the target before we make deletions.
+    DECLARE @targetCountBeforeDeletes AS BIGINT
+    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_FlexMemberHealthCheckItem;
+
+    -- (For validation) Counts how many records are updates
+    DECLARE @totalsourceUpdateCount AS BIGINT
+    SELECT @totalsourceUpdateCount = COUNT(*)
+                               FROM [xAnalytics_DW].[dm].[TDMA_1Dim_FlexMemberHealthCheckItem] a 
+                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Dim_FlexMemberHealthCheckItem] b ON (a.C_FlexMemberHealthCheckItem_VID = b.C_FlexMemberHealthCheckItem_VID and a.FMHCI_SYS_SourceDB = b.FMHCI_SYS_SourceDB);
+
+
+    -- Delete the updates (exist in temp and target) from the target.
     DECLARE @deleteUpdatedRecordsFromTarget AS NVARCHAR(4000) = N'DELETE ' + @targetTable + N' 
                                                                   FROM ' + @targetTable + N' a 
                                                                   INNER JOIN ' + @tempTable + N' b ON (a.C_FlexMemberHealthCheckItem_VID = b.C_FlexMemberHealthCheckItem_VID and a.FMHCI_SYS_SourceDB = b.FMHCI_SYS_SourceDB);'
@@ -197,6 +211,7 @@ CREATE PROCEDURE dw.sp_Populate_FlexMemberHealthCheckItem AS
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
     SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_FlexMemberHealthCheckItem;
+
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
@@ -305,22 +320,61 @@ CREATE PROCEDURE dw.sp_Populate_FlexMemberHealthCheckItem AS
     DECLARE @truncateRunDataTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempRunDataTable + N';'
     EXECUTE (@truncateRunDataTempTable)
 
-    -- (For validation) If the amount of added target records matches the expected amount, insert the record with a 'Y' for the 'Passed' column. Else, 'N'.
-    IF (@targetCountAfterAdditions - @targetCountBeforeAdditions) = @newRecordCount
-        INSERT INTO [xAnalytics_DW].[dw].[RunData]
-        VALUES (@sourceTable
-                ,@LastRuntime
-                ,@newRecordCount
-                ,@targetCountAfterAdditions - @targetCountBeforeAdditions
-                ,'Y');
-    ELSE
-        INSERT INTO [xAnalytics_DW].[dw].[RunData]
-        VALUES (@sourceTable
-                ,@LastRuntime
-                ,@newRecordCount
-                ,@targetCountAfterAdditions - @targetCountBeforeAdditions
-                ,'N');
+    -- (For validation) Captures script end DATETIME
+    DECLARE @endRunTime AS DATETIME = GETDATE();
 
+        -- (For validation) Checking whether the expected record additions to the target actually occur and whether or not the amount of expected updates actually occur.
+    -- The TotalRecordCountPassed and TotalUpdateCountPassed change depending on scenario.
+    IF ((@targetCountAfterAdditions - @targetCountBeforeAdditions) = @newRecordCount)
+        IF ((@targetCountBeforeDeletes - @targetCountBeforeAdditions) = @totalSourceUpdateCount)
+            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            VALUES (@sourceTable
+                   ,@lastRuntime
+                   ,@startRunTime
+                   ,@endRunTime
+                   ,@targetCountAfterAdditions - @targetCountBeforeAdditions
+                   ,@newRecordCount
+                   ,'Y'
+                   ,@totalSourceUpdateCount
+                   ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
+                   ,'Y');
+        ELSE
+            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            VALUES (@sourceTable
+                   ,@lastRuntime
+                   ,@startRunTime
+                   ,@endRunTime
+                   ,@targetCountAfterAdditions - @targetCountBeforeAdditions
+                   ,@newRecordCount
+                   ,'Y'
+                   ,@totalSourceUpdateCount
+                   ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
+                   ,'N');
+    ELSE
+        IF ((@targetCountBeforeDeletes - @targetCountBeforeAdditions) = @totalSourceUpdateCount)
+            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            VALUES (@sourceTable
+                   ,@lastRuntime
+                   ,@startRunTime
+                   ,@endRunTime
+                   ,@targetCountAfterAdditions - @targetCountBeforeAdditions
+                   ,@newRecordCount
+                   ,'N'
+                   ,@totalSourceUpdateCount
+                   ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
+                   ,'Y');
+        ELSE
+            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            VALUES (@sourceTable
+                   ,@lastRuntime
+                   ,@startRunTime
+                   ,@endRunTime
+                   ,@targetCountAfterAdditions - @targetCountBeforeAdditions
+                   ,@newRecordCount
+                   ,'N'
+                   ,@totalSourceUpdateCount
+                   ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
+                   ,'N');
 GO
 
 EXEC dw.sp_Populate_FlexMemberHealthCheckItem
