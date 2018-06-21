@@ -1,0 +1,19 @@
+USE [xAnalytics_DW]
+GO
+
+/****** Object:  Table [dw].[TEMP_RunData]    Script Date: 6/21/2018 3:59:47 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dw].[TEMP_RunData](
+	[Table_Name] [varchar](100) NOT NULL,
+	[Records_Captured] [bigint] NOT NULL,
+ CONSTRAINT [PK_TEMPRunData] PRIMARY KEY CLUSTERED 
+(
+	[Table_Name] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
