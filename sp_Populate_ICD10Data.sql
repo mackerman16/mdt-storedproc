@@ -20,18 +20,18 @@ BEGIN
     --                       we want as a result of the convert. We have the To Date set to the future to compensate for the differing server times
     --                       causing records in the data mart with SYS_ETL_Timestamps set in the future.
     DECLARE @constructedInsert AS NVARCHAR(4000) = N'INSERT INTO ' + @table + 
-                                                   N' SELECT [ICD10Data_OID]
-      ,[ICD10DataID]
-      ,[ICD10DataCode]
-      ,[ICD10DataDescription]
-      ,[ParentID]
-      ,[IsHeader]
-      ,[HasNonHeaderChild]
-      ,[HasHeaderChild]
-      ,[SYS_SourceDB]
-      ,[SYS_ETL_Timestamp]
-      ,[ICD10Data_RUNNO_INSERT]
-      ,[ICD10Data_RUNNO_UPDATE]
+                                                   N' SELECT ICD10Data_OID
+      ,ICD10DataID
+      ,ICD10DataCode
+      ,ICD10DataDescription
+      ,ParentID
+      ,IsHeader
+      ,HasNonHeaderChild
+      ,HasHeaderChild
+      ,SYS_SourceDB
+      ,SYS_ETL_Timestamp
+      ,ICD10Data_RUNNO_INSERT
+      ,ICD10Data_RUNNO_UPDATE
       ,CONCAT(SYS_SourceDB,' + ' - ' + 'ICD10Data_OID)
       FROM ' + @dbname + N'.dm.TDMA_1Dim_ICD10Data
       WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
@@ -138,19 +138,19 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
-                                                               N' SELECT [ICD10Data_OID]
-      ,[ICD10DataID]
-      ,[ICD10DataCode]
-      ,[ICD10DataDescription]
-      ,[ParentID]
-      ,[IsHeader]
-      ,[HasNonHeaderChild]
-      ,[HasHeaderChild]
-      ,[SYS_SourceDB]
-      ,[SYS_ETL_Timestamp]
-      ,[ICD10Data_RUNNO_INSERT]
-      ,[ICD10Data_RUNNO_UPDATE]
-      ,[SYS_SourceDB_ICD10Data_OID]
+                                                               N' SELECT ICD10Data_OID
+      ,ICD10DataID
+      ,ICD10DataCode
+      ,ICD10DataDescription
+      ,ParentID
+      ,IsHeader
+      ,HasNonHeaderChild
+      ,HasHeaderChild
+      ,SYS_SourceDB
+      ,SYS_ETL_Timestamp
+      ,ICD10Data_RUNNO_INSERT
+      ,ICD10Data_RUNNO_UPDATE
+      ,SYS_SourceDB_ICD10Data_OID
        FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
 

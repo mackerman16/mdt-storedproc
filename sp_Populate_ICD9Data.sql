@@ -20,18 +20,18 @@ BEGIN
     --                       we want as a result of the convert. We have the To Date set to the future to compensate for the differing server times
     --                       causing records in the data mart with SYS_ETL_Timestamps set in the future.
     DECLARE @constructedInsert AS NVARCHAR(4000) = N'INSERT INTO ' + @table + 
-                                                   N' SELECT [ICD9Data_OID]
-      ,[ICD9ID]
-      ,[Code]
-      ,[ICD9Description]
-      ,[Group1]
-      ,[Group2]
-      ,[Group3]
-      ,[Display]
-      ,[SYS_SourceDB]
-      ,[SYS_ETL_Timestamp]
-      ,[ICD9Data_RUNNO_INSERT]
-      ,[ICD9Data_RUNNO_UPDATE]
+                                                   N' SELECT ICD9Data_OID
+      ,ICD9ID
+      ,Code
+      ,ICD9Description
+      ,Group1
+      ,Group2
+      ,Group3
+      ,Display
+      ,SYS_SourceDB
+      ,SYS_ETL_Timestamp
+      ,ICD9Data_RUNNO_INSERT
+      ,ICD9Data_RUNNO_UPDATE
       ,CONCAT(SYS_SourceDB,' + ' - ' + 'ICD9Data_OID)
       FROM ' + @dbname + N'.dm.TDMA_1Dim_ICD9Data
       WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
@@ -138,19 +138,19 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Data AS
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
-                                                               N' SELECT [ICD9Data_OID]
-      ,[ICD9ID]
-      ,[Code]
-      ,[ICD9Description]
-      ,[Group1]
-      ,[Group2]
-      ,[Group3]
-      ,[Display]
-      ,[SYS_SourceDB]
-      ,[SYS_ETL_Timestamp]
-      ,[ICD9Data_RUNNO_INSERT]
-      ,[ICD9Data_RUNNO_UPDATE]
-      ,[SYS_SourceDB_ICD9Data_OID]
+                                                               N' SELECT ICD9Data_OID
+      ,ICD9ID
+      ,Code
+      ,ICD9Description
+      ,Group1
+      ,Group2
+      ,Group3
+      ,Display
+      ,SYS_SourceDB
+      ,SYS_ETL_Timestamp
+      ,ICD9Data_RUNNO_INSERT
+      ,ICD9Data_RUNNO_UPDATE
+      ,SYS_SourceDB_ICD9Data_OID
        FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
 

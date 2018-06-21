@@ -1,6 +1,6 @@
 
 /*
- * Function used to generate the insert statement used when combining the ICD9Index table
+ * Function used to generate the insert statement used when combining the C_ClientMonitoringStates table
  * from many clients into one target table. The generated insert statement must be run once for each client. 
  *
  * Parameters:
@@ -9,53 +9,47 @@
  *      @lastRuntimeForClient DATETIME - the last time we captured data (@dbname)
  *
  * Returns:
- *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the ICD9Index data from a specific client and insert it into a target table
+ *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the C_ClientMonitoringStates data from a specific client and insert it into a target table
  */
-CREATE FUNCTION dw.ICD9Index_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
+CREATE FUNCTION dw.C_ClientMonitoringStates_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
 BEGIN
 
-    -- The insert statement used to capture the ICD9Index data and insert it into a target table.
+    -- The insert statement used to capture the C_ClientMonitoringStates data and insert it into a target table.
     -- Note on WHERE clause: We add 1 second to From Date to retrieve all records inserted or updated that have happened since our last runtime.
     --                       Both dates in WHERE clause are converted to varchar in order for compare to work with '21' being the format of varchar
     --                       we want as a result of the convert. We have the To Date set to the future to compensate for the differing server times
     --                       causing records in the data mart with SYS_ETL_Timestamps set in the future.
     DECLARE @constructedInsert AS NVARCHAR(4000) = N'INSERT INTO ' + @table + 
-                                                   N' SELECT ICD9Index_OID
-      ,ICD9IndexID
-      ,ICD9Description
-      ,Group1
-      ,Group2
-      ,Group3
-      ,StartTxt
-      ,EndTxt
+                                                   N' SELECT C_ClientMonitoringStates_OID
       ,SYS_SourceDB
+      ,StateCode
       ,SYS_ETL_Timestamp
-      ,ICD9Index_RUNNO_INSERT
-      ,ICD9Index_RUNNO_UPDATE
-      ,CONCAT(SYS_SourceDB,' + ' - ' + 'ICD9Index_OID)
-      FROM ' + @dbname + N'.dm.TDMA_1Dim_ICD9Index
+      ,C_ClientMonitoringStates_RUNNO_INSERT
+      ,C_ClientMonitoringStates_RUNNO_UPDATE
+      ,CONCAT(SYS_SourceDB,' + ' - ' + 'C_ClientMonitoringStates_OID)
+      FROM ' + @dbname + N'.dm.TDMA_1Dim_C_ClientMonitoringStates
       WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
 END
 
 /*
- * Stored procedure that loops through all clients, captures the ICD9Index inserts and updates
+ * Stored procedure that loops through all clients, captures the C_ClientMonitoringStates inserts and updates
  * (since the last time this procedure was ran), and enters the data into one combined target table.
  */ 
-CREATE PROCEDURE dw.sp_Populate_ICD9Index AS
+CREATE PROCEDURE dw.sp_Populate_C_ClientMonitoringStates AS
 
     -- (For validation) Captures script start DATETIME
     DECLARE @startRunTime AS DATETIME = GETDATE();
 
     -- The source table we wish to retrieve the inserts and updates from
-    DECLARE @sourceTable AS NVARCHAR(90) = N'TDMA_1Dim_ICD9Index';
+    DECLARE @sourceTable AS NVARCHAR(90) = N'TDMA_1Dim_C_ClientMonitoringStates';
 
     -- Temporary table used during the process of moving data from client table to target table.
-    DECLARE @tempTable AS NVARCHAR(90) = N'xAnalytics_DW.dw.TEMP_TDMA_1Dim_ICD9Index';
+    DECLARE @tempTable AS NVARCHAR(90) = N'xAnalytics_DW.dw.TEMP_TDMA_1Dim_C_ClientMonitoringStates';
 
     -- Target table.
-    DECLARE @targetTable AS NVARCHAR(90) = N'xAnalytics_DW.dm.TDMA_1Dim_ICD9Index';
+    DECLARE @targetTable AS NVARCHAR(90) = N'xAnalytics_DW.dm.TDMA_1Dim_C_ClientMonitoringStates';
 
     -- Temporary table used during data quality validation.
     DECLARE @tempRunDataTable AS NVARCHAR(90) = N'xAnalytics_DW.dw.TEMP_RunData';
@@ -69,7 +63,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Index AS
                           FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
                           WHERE ID = 1;
 
-    -- Truncate the temp table for ICD9Index.
+    -- Truncate the temp table for C_ClientMonitoringStates.
     DECLARE @truncateTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempTable + N';'
     EXECUTE (@truncateTempTable)
 
@@ -86,7 +80,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Index AS
         
         BEGIN
             BEGIN TRY
-                -- Checks how many records we should be capturing from ICD9Index for each client and stores them in a temporary table.
+                -- Checks how many records we should be capturing from C_ClientMonitoringStates for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
                               SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
@@ -97,7 +91,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Index AS
                 EXECUTE (@countAndTrackNewRecords)
 
                 -- Calling our function to generate the insert statements to move the records to a temporary table.
-                DECLARE @insert AS NVARCHAR(4000) = dw.ICD9Index_GenerateInsert(@tempTable, @dbname, @lastRuntime)
+                DECLARE @insert AS NVARCHAR(4000) = dw.C_ClientMonitoringStates_GenerateInsert(@tempTable, @dbname, @lastRuntime)
                 EXECUTE (@insert)
 
             END TRY
@@ -116,47 +110,41 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Index AS
 
     -- (For validation) Counting how many records are in the target before we make deletions.
     DECLARE @targetCountBeforeDeletes AS BIGINT
-    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_ICD9Index;
+    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_C_ClientMonitoringStates;
 
     -- (For validation) Counts how many records are updates
     DECLARE @totalsourceUpdateCount AS BIGINT
     SELECT @totalsourceUpdateCount = COUNT(*)
-                               FROM [xAnalytics_DW].[dm].[TDMA_1Dim_ICD9Index] a 
-                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Dim_ICD9Index] b ON (a.ICD9Index_OID = b.ICD9Index_OID and a.SYS_SourceDB = b.SYS_SourceDB);
+                               FROM [xAnalytics_DW].[dm].[TDMA_1Dim_C_ClientMonitoringStates] a 
+                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Dim_C_ClientMonitoringStates] b ON (a.C_ClientMonitoringStates_OID = b.C_ClientMonitoringStates_OID and a.SYS_SourceDB = b.SYS_SourceDB);
 
 
     -- Delete the updates (exist in temp and target) from the target.
     DECLARE @deleteUpdatedRecordsFromTarget AS NVARCHAR(4000) = N'DELETE ' + @targetTable + N' 
                                                                   FROM ' + @targetTable + N' a 
-                                                                  INNER JOIN ' + @tempTable + N' b ON (a.ICD9Index_OID = b.ICD9Index_OID and a.SYS_SourceDB = b.SYS_SourceDB);'
+                                                                  INNER JOIN ' + @tempTable + N' b ON (a.C_ClientMonitoringStates_OID = b.C_ClientMonitoringStates_OID and a.SYS_SourceDB = b.SYS_SourceDB);'
     EXECUTE (@deleteUpdatedRecordsFromTarget)
 
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
-    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_ICD9Index;
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_C_ClientMonitoringStates;
 
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
-                                                               N' SELECT ICD9Index_OID
-      ,ICD9IndexID
-      ,ICD9Description
-      ,Group1
-      ,Group2
-      ,Group3
-      ,StartTxt
-      ,EndTxt
+                                                               N' SELECT C_ClientMonitoringStates_OID
       ,SYS_SourceDB
+      ,StateCode
       ,SYS_ETL_Timestamp
-      ,ICD9Index_RUNNO_INSERT
-      ,ICD9Index_RUNNO_UPDATE
-      ,SYS_SourceDB_ICD9Index_OID
+      ,C_ClientMonitoringStates_RUNNO_INSERT
+      ,C_ClientMonitoringStates_RUNNO_UPDATE
+      ,SYS_SourceDB_C_ClientMonitoringStates_OID
        FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
 
     -- (For validation) Counting how many records are in the target after we make additions.
     DECLARE @targetCountAfterAdditions AS BIGINT
-    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_ICD9Index;
+    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_C_ClientMonitoringStates;
 
     -- (For validation) Counting how many records are in the temporary RunData table which shows us how many records we should expect to be inserted into the target.
     DECLARE @newRecordCount AS BIGINT
@@ -223,4 +211,4 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Index AS
                    ,'N');
 GO
 
-EXEC dw.sp_Populate_ICD9Index
+EXEC dw.sp_Populate_C_ClientMonitoringStates
