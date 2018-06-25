@@ -33,7 +33,7 @@ BEGIN
       ,ICD9Data_RUNNO_INSERT
       ,ICD9Data_RUNNO_UPDATE
       ,CONCAT(SYS_SourceDB,' + ' - ' + 'ICD9Data_OID)
-      FROM ' + @dbname + N'.dm.TDMA_1Dim_ICD9Data
+      FROM ' + @dbname + N'_DW.dm.TDMA_1Dim_ICD9Data
       WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
@@ -89,7 +89,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD9Data AS
                 -- Checks how many records we should be capturing from ICD9Data for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
-                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
+                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
                                                           WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
                               INSERT INTO ' + @tempRunDataTable + N'

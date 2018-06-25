@@ -90,7 +90,7 @@ BEGIN
       ,P2IB_PathwayInstanceFlag
       ,C_DeviceReading_RUNNO_INSERT
       ,CONCAT(DeviceLog_SYS_SourceDB,' + ' - ' + 'TR_ID)
-       FROM ' + @dbname + N'.dm.TDMA_1Fct_C_DeviceReading
+       FROM ' + @dbname + N'_DW.dm.TDMA_1Fct_C_DeviceReading
        WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
               AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
@@ -146,7 +146,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
                 -- Checks how many records we should be capturing from C_DeviceReading for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
-                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
+                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
                                                           WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
                               INSERT INTO ' + @tempRunDataTable + N'

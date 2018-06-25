@@ -1,6 +1,6 @@
 
 /*
- * Function used to generate the insert statement used when combining the DevicePeripheral table
+ * Function used to generate the insert statement used when combining the MemberStatus table
  * from many clients into one target table. The generated insert statement must be run once for each client. 
  *
  * Parameters:
@@ -9,49 +9,84 @@
  *      @lastRuntimeForClient DATETIME - the last time we captured data (@dbname)
  *
  * Returns:
- *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the DevicePeripheral data from a specific client and insert it into a target table
+ *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the MemberStatus data from a specific client and insert it into a target table
  */
-CREATE FUNCTION dw.DevicePeripheral_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
+CREATE FUNCTION dw.MemberStatus_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
 BEGIN
 
-    -- The insert statement used to capture the DevicePeripheral data and insert it into a target table.
+    -- The insert statement used to capture the MemberStatus data and insert it into a target table.
     -- Note on WHERE clause: We add 1 second to From Date to retrieve all records inserted or updated that have happened since our last runtime.
     --                       Both dates in WHERE clause are converted to varchar in order for compare to work with '21' being the format of varchar
     --                       we want as a result of the convert. We have the To Date set to the future to compensate for the differing server times
     --                       causing records in the data mart with SYS_ETL_Timestamps set in the future.
     DECLARE @constructedInsert AS NVARCHAR(4000) = N'INSERT INTO ' + @table + 
-                                                   N' SELECT DevicePeripheral_OID
-      ,DevicePeripheralId
-      ,PeripheralName
-      ,PeripheralDisplayName
-      ,SYS_SourceDB
-      ,SYS_ETL_Timestamp
-      ,DevicePeripheral_RUNNO_INSERT
-      ,DevicePeripheral_RUNNO_UPDATE
-      ,CONCAT(SYS_SourceDB,' + ' - ' + 'DevicePeripheral_OID)
-      FROM ' + @dbname + N'_DW.dm.TDMA_1Dim_DevicePeripheral
-      WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
+                                                   N' SELECT TR_ID
+      ,BeginDate_Date_OID
+      ,MemberStatusId
+      ,StatusId
+      ,Status
+      ,ExcusedAbsence
+      ,Status_SYS_SourceDB
+      ,Status_SYS_ETL_Timestamp
+      ,ICD9Id
+      ,BeginDate
+      ,EndDate
+      ,LastUpdated
+      ,SystemUserId
+      ,IsEstimatedEndDate
+      ,IsInitialEnrollment
+      ,ICDVersion
+      ,GIGO_Flag
+      ,MemberStatus_SYS_SourceDB
+      ,MemberStatus_SYS_ETL_Timestamp
+      ,FacilityId
+      ,FacilityTypeId
+      ,FacilityType
+      ,FacilityClass
+      ,FacilityType_SYS_SourceDB
+      ,FacilityType_SYS_ETL_Timestamp
+      ,FacilityName
+      ,Street
+      ,City
+      ,State
+      ,Zip
+      ,Phone
+      ,Fax
+      ,Active
+      ,Street2
+      ,ExternalID
+      ,Abbreviation
+      ,EmailAddress
+      ,Facility_SYS_SourceDB
+      ,Facility_SYS_ETL_Timestamp
+      ,Member_OID
+      ,Member_VID
+      ,MemberId
+      ,MemberStatus_RUNNO_INSERT
+      ,CONCAT(MemberStatus_SYS_SourceDB,' + ' - ' + 'TR_ID)
+      FROM ' + @dbname + N'_DW.dm.TDMA_1Fct_MemberStatus
+      WHERE (MemberStatus_SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
 END
 
 /*
- * Stored procedure that loops through all clients, captures the DevicePeripheral inserts and updates
+ * Stored procedure that loops through all clients, captures the MemberStatus inserts and updates
  * (since the last time this procedure was ran), and enters the data into one combined target table.
  */ 
-CREATE PROCEDURE dw.sp_Populate_DevicePeripheral AS
+CREATE PROCEDURE dw.sp_Populate_MemberStatus AS
 
     -- (For validation) Captures script start DATETIME
     DECLARE @startRunTime AS DATETIME = GETDATE();
 
     -- The source table we wish to retrieve the inserts and updates from
-    DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Dim_DevicePeripheral';
+    DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Fct_MemberStatus';
 
     -- Temporary table used during the process of moving data from client table to target table.
-    DECLARE @tempTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_TDMA_1Dim_DevicePeripheral';
+    DECLARE @tempTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_TDMA_1Fct_MemberStatus';
 
     -- Target table.
-    DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Dim_DevicePeripheral';
+    DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Fct_MemberStatus';
 
     -- Temporary table used during data quality validation.
     DECLARE @tempRunDataTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_RunData';
@@ -65,7 +100,7 @@ CREATE PROCEDURE dw.sp_Populate_DevicePeripheral AS
                           FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
                           WHERE ID = 1;
 
-    -- Truncate the temp table for DevicePeripheral.
+    -- Truncate the temp table for MemberStatus.
     DECLARE @truncateTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempTable + N';'
     EXECUTE (@truncateTempTable)
 
@@ -82,18 +117,18 @@ CREATE PROCEDURE dw.sp_Populate_DevicePeripheral AS
         
         BEGIN
             BEGIN TRY
-                -- Checks how many records we should be capturing from DevicePeripheral for each client and stores them in a temporary table.
+                -- Checks how many records we should be capturing from MemberStatus for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
                               SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
-                                                          WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
+                                                          WHERE (MemberStatus_SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
                               INSERT INTO ' + @tempRunDataTable + N'
                               VALUES (''' + @dbname + N''', @newRecordsCounted);'
                 EXECUTE (@countAndTrackNewRecords)
 
                 -- Calling our function to generate the insert statements to move the records to a temporary table.
-                DECLARE @insert AS NVARCHAR(4000) = dw.DevicePeripheral_GenerateInsert(@tempTable, @dbname, @lastRuntime)
+                DECLARE @insert AS NVARCHAR(4000) = dw.MemberStatus_GenerateInsert(@tempTable, @dbname, @lastRuntime)
                 EXECUTE (@insert)
 
             END TRY
@@ -112,43 +147,78 @@ CREATE PROCEDURE dw.sp_Populate_DevicePeripheral AS
 
     -- (For validation) Counting how many records are in the target before we make deletions.
     DECLARE @targetCountBeforeDeletes AS BIGINT
-    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_DevicePeripheral;
+    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberStatus;
 
     -- (For validation) Counts how many records are updates
     DECLARE @totalsourceUpdateCount AS BIGINT
     SELECT @totalsourceUpdateCount = COUNT(*)
-                               FROM [xAnalytics_DW].[dm].[TDMA_1Dim_DevicePeripheral] a 
-                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Dim_DevicePeripheral] b ON (a.DevicePeripheral_OID = b.DevicePeripheral_OID and a.SYS_SourceDB = b.SYS_SourceDB);
+                               FROM [xAnalytics_DW].[dm].[TDMA_1Fct_MemberStatus] a 
+                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Fct_MemberStatus] b ON (a.TR_ID = b.TR_ID and a.MemberStatus_SYS_SourceDB = b.MemberStatus_SYS_SourceDB);
 
 
     -- Delete the updates (exist in temp and target) from the target.
     DECLARE @deleteUpdatedRecordsFromTarget AS NVARCHAR(4000) = N'DELETE ' + @targetTable + N' 
                                                                   FROM ' + @targetTable + N' a 
-                                                                  INNER JOIN ' + @tempTable + N' b ON (a.DevicePeripheral_OID = b.DevicePeripheral_OID and a.SYS_SourceDB = b.SYS_SourceDB);'
+                                                                  INNER JOIN ' + @tempTable + N' b ON (a.TR_ID = b.TR_ID and a.MemberStatus_SYS_SourceDB = b.MemberStatus_SYS_SourceDB);'
     EXECUTE (@deleteUpdatedRecordsFromTarget)
 
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
-    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_DevicePeripheral;
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberStatus;
 
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
-                                                               N' SELECT DevicePeripheral_OID
-      ,DevicePeripheralId
-      ,PeripheralName
-      ,PeripheralDisplayName
-      ,SYS_SourceDB
-      ,SYS_ETL_Timestamp
-      ,DevicePeripheral_RUNNO_INSERT
-      ,DevicePeripheral_RUNNO_UPDATE
-      ,SYS_SourceDB_DevicePeripheral_OID
+                                                               N' SELECT TR_ID
+      ,BeginDate_Date_OID
+      ,MemberStatusId
+      ,StatusId
+      ,Status
+      ,ExcusedAbsence
+      ,Status_SYS_SourceDB
+      ,Status_SYS_ETL_Timestamp
+      ,ICD9Id
+      ,BeginDate
+      ,EndDate
+      ,LastUpdated
+      ,SystemUserId
+      ,IsEstimatedEndDate
+      ,IsInitialEnrollment
+      ,ICDVersion
+      ,GIGO_Flag
+      ,MemberStatus_SYS_SourceDB
+      ,MemberStatus_SYS_ETL_Timestamp
+      ,FacilityId
+      ,FacilityTypeId
+      ,FacilityType
+      ,FacilityClass
+      ,FacilityType_SYS_SourceDB
+      ,FacilityType_SYS_ETL_Timestamp
+      ,FacilityName
+      ,Street
+      ,City
+      ,State
+      ,Zip
+      ,Phone
+      ,Fax
+      ,Active
+      ,Street2
+      ,ExternalID
+      ,Abbreviation
+      ,EmailAddress
+      ,Facility_SYS_SourceDB
+      ,Facility_SYS_ETL_Timestamp
+      ,Member_OID
+      ,Member_VID
+      ,MemberId
+      ,MemberStatus_RUNNO_INSERT
+      ,MemberStatus_SYS_SourceDB_TR_ID
        FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
 
     -- (For validation) Counting how many records are in the target after we make additions.
     DECLARE @targetCountAfterAdditions AS BIGINT
-    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_DevicePeripheral;
+    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberStatus;
 
     -- (For validation) Counting how many records are in the temporary RunData table which shows us how many records we should expect to be inserted into the target.
     DECLARE @newRecordCount AS BIGINT
@@ -215,4 +285,4 @@ CREATE PROCEDURE dw.sp_Populate_DevicePeripheral AS
                    ,'N');
 GO
 
-EXEC dw.sp_Populate_DevicePeripheral
+EXEC dw.sp_Populate_MemberStatus

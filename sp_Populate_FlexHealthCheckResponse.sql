@@ -35,7 +35,7 @@ BEGIN
       ,MemberId
       ,C_FlexHealthCheckResponse_RUNNO_INSERT
       ,CONCAT(SYS_SourceDB,' + ' - ' + 'TR_ID)
-       FROM ' + @dbname + N'.dm.TDMA_1Fct_C_FlexHealthCheckResponse
+       FROM ' + @dbname + N'_DW.dm.TDMA_1Fct_C_FlexHealthCheckResponse
        WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
               AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
@@ -91,7 +91,7 @@ CREATE PROCEDURE dw.sp_Populate_C_FlexHealthCheckResponse AS
                 -- Checks how many records we should be capturing from C_FlexHealthCheckResponse for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
-                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
+                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
                                                           WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
                               INSERT INTO ' + @tempRunDataTable + N'

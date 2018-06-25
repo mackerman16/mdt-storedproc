@@ -105,7 +105,7 @@ BEGIN
       ,Member_RUNNO_INSERT
       ,Member_RUNNO_UPDATE
       ,CONCAT(SYS_SourceDB,' + ' - ' + 'Member_VID)
-      FROM ' + @dbname + N'.dm.TDMA_1Dim_Member_MemberDetail
+      FROM ' + @dbname + N'_DW.dm.TDMA_1Dim_Member_MemberDetail
       WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
              AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
@@ -161,7 +161,7 @@ CREATE PROCEDURE dw.sp_Populate_Member_MemberDetail AS
                 -- Checks how many records we should be capturing from Member_MemberDetail for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
-                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
+                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
                                                           WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
                               INSERT INTO ' + @tempRunDataTable + N'
@@ -217,7 +217,7 @@ CREATE PROCEDURE dw.sp_Populate_Member_MemberDetail AS
       ,ChartId
       ,Title
       ,FirstName
-      ,MiddleNameZ
+      ,MiddleName
       ,LastName
       ,Street
       ,Street2

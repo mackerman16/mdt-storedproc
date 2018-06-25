@@ -60,7 +60,7 @@ BEGIN
       ,Path2Instance_RUNNO_INSERT
       ,Path2Instance_RUNNO_UPDATE
       ,CONCAT(P2I_SYS_SourceDB,' + ' - ' + 'Path2Instance_VID)
-      FROM ' + @dbname + N'.dm.TDMA_1Dim_Path2Instance
+      FROM ' + @dbname + N'_DW.dm.TDMA_1Dim_Path2Instance
       WHERE (P2I_SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
@@ -116,7 +116,7 @@ CREATE PROCEDURE dw.sp_Populate_Path2Instance AS
                 -- Checks how many records we should be capturing from Path2Instance for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
-                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'.dm.' + @sourceTable + '
+                              SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
                                                           WHERE (P2I_SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                                                                    AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));;
                               INSERT INTO ' + @tempRunDataTable + N'
