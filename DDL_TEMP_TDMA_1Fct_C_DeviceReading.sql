@@ -1,7 +1,7 @@
 USE [xAnalytics_DW]
 GO
 
-/****** Object:  Table [dw].[TEMP_TDMA_1Fct_C_DeviceReading]    Script Date: 6/21/2018 4:55:14 PM ******/
+/****** Object:  Table [dw].[TEMP_TDMA_1Fct_C_DeviceReading]    Script Date: 6/26/2018 11:54:27 AM ******/
 SET ANSI_NULLS ON
 GO
 

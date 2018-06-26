@@ -1,7 +1,7 @@
 USE [xAnalytics_DW]
 GO
 
-/****** Object:  Table [dm].[TDMA_1Fct_AssessmentTransmitLog]    Script Date: 6/21/2018 3:55:18 PM ******/
+/****** Object:  Table [dm].[TDMA_1Fct_AssessmentTransmitLog]    Script Date: 6/26/2018 11:15:19 AM ******/
 SET ANSI_NULLS ON
 GO
 
