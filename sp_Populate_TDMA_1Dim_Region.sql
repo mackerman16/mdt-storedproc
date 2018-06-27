@@ -1,6 +1,6 @@
 
 /*
- * Function used to generate the insert statement used when combining the MemberFacility table
+ * Function used to generate the insert statement used when combining the Region table
  * from many clients into one target table. The generated insert statement must be run once for each client. 
  *
  * Parameters:
@@ -9,60 +9,54 @@
  *      @lastRuntimeForClient DATETIME - the last time we captured data (@dbname)
  *
  * Returns:
- *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the MemberFacility data from a specific client and insert it into a target table
+ *      @constructedInsert NVARCHAR(4000) - the insert statement used to capture the Region data from a specific client and insert it into a target table
  */
-CREATE FUNCTION dw.MemberFacility_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
+CREATE FUNCTION dw.Region_GenerateInsert (@table NVARCHAR(250), @dbname NVARCHAR(50), @lastRuntime DATETIME) RETURNS NVARCHAR(4000) AS
 BEGIN
 
-    -- The insert statement used to capture the MemberFacility data and insert it into a target table.
+    -- The insert statement used to capture the Region data and insert it into a target table.
     -- Note on WHERE clause: We add 1 second to From Date to retrieve all records inserted or updated that have happened since our last runtime.
     --                       Both dates in WHERE clause are converted to varchar in order for compare to work with '21' being the format of varchar
     --                       we want as a result of the convert. We have the To Date set to the future to compensate for the differing server times
     --                       causing records in the data mart with SYS_ETL_Timestamps set in the future.
     DECLARE @constructedInsert AS NVARCHAR(4000) = N'INSERT INTO ' + @table + 
-                                                   N' SELECT TR_ID
-      ,StartDate_Date_OID
-      ,Member_OID
-      ,Member_VID
-      ,Facility_OID
-      ,Facility_VID
-      ,MemberFacilityId
-      ,PrimaryFacility
-      ,Notes
-      ,LastUpdated
-      ,SystemUserId
-      ,StartDate
-      ,EndDate
+                                                   N' SELECT Region_VID
+      ,Region_FromDate
+      ,Region_ToDate
+      ,Region_OID
+      ,RegionID
+      ,RegionName
+      ,Description_01
       ,Active
-      ,GIGO_Flag
       ,SYS_SourceDB
       ,SYS_ETL_Timestamp
-      ,Member_Id
-      ,MemberFacility_RUNNO_INSERT
-      ,CONCAT(SYS_SourceDB,' + ' - ' + 'TR_ID)
-      FROM ' + @dbname + N'_DW.dm.TDMA_1Fct_MemberFacility
+      ,OBSOLETE__INDICATION
+      ,Region_RUNNO_INSERT
+      ,Region_RUNNO_UPDATE
+      ,CONCAT(SYS_SourceDB,' + ' - ' + 'Region_VID)
+      FROM ' + @dbname + N'_DW.dm.TDMA_1Dim_Region
       WHERE (SYS_ETL_Timestamp BETWEEN DATEADD(ss, 1, ''' + CONVERT(NVARCHAR(30), @lastRuntime, 21) + N''')
                                AND CONVERT(NVARCHAR(30), DATEADD(day, 5, GETDATE()), 21));'
     RETURN @constructedInsert
 END
 
 /*
- * Stored procedure that loops through all clients, captures the MemberFacility inserts and updates
+ * Stored procedure that loops through all clients, captures the Region inserts and updates
  * (since the last time this procedure was ran), and enters the data into one combined target table.
  */ 
-CREATE PROCEDURE dw.sp_Populate_MemberFacility AS
+CREATE PROCEDURE dw.sp_Populate_Region AS
 
     -- (For validation) Captures script start DATETIME
     DECLARE @startRunTime AS DATETIME = GETDATE();
 
     -- The source table we wish to retrieve the inserts and updates from
-    DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Fct_MemberFacility';
+    DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Dim_Region';
 
     -- Temporary table used during the process of moving data from client table to target table.
-    DECLARE @tempTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_TDMA_1Fct_MemberFacility';
+    DECLARE @tempTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_TDMA_1Dim_Region';
 
     -- Target table.
-    DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Fct_MemberFacility';
+    DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Dim_Region';
 
     -- Temporary table used during data quality validation.
     DECLARE @tempRunDataTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_RunData';
@@ -76,7 +70,7 @@ CREATE PROCEDURE dw.sp_Populate_MemberFacility AS
                           FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
                           WHERE ID = 1;
 
-    -- Truncate the temp table for MemberFacility.
+    -- Truncate the temp table for Region.
     DECLARE @truncateTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempTable + N';'
     EXECUTE (@truncateTempTable)
 
@@ -93,7 +87,7 @@ CREATE PROCEDURE dw.sp_Populate_MemberFacility AS
         
         BEGIN
             BEGIN TRY
-                -- Checks how many records we should be capturing from MemberFacility for each client and stores them in a temporary table.
+                -- Checks how many records we should be capturing from Region for each client and stores them in a temporary table.
                 DECLARE @countAndTrackNewRecords AS NVARCHAR(4000) =
                             N'DECLARE @newRecordsCounted AS BIGINT;
                               SELECT @newRecordsCounted = COUNT(*)FROM ' + @dbname + N'_DW.dm.' + @sourceTable + '
@@ -104,7 +98,7 @@ CREATE PROCEDURE dw.sp_Populate_MemberFacility AS
                 EXECUTE (@countAndTrackNewRecords)
 
                 -- Calling our function to generate the insert statements to move the records to a temporary table.
-                DECLARE @insert AS NVARCHAR(4000) = dw.MemberFacility_GenerateInsert(@tempTable, @dbname, @lastRuntime)
+                DECLARE @insert AS NVARCHAR(4000) = dw.Region_GenerateInsert(@tempTable, @dbname, @lastRuntime)
                 EXECUTE (@insert)
 
             END TRY
@@ -123,54 +117,48 @@ CREATE PROCEDURE dw.sp_Populate_MemberFacility AS
 
     -- (For validation) Counting how many records are in the target before we make deletions.
     DECLARE @targetCountBeforeDeletes AS BIGINT
-    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberFacility;
+    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_Region;
 
     -- (For validation) Counts how many records are updates
     DECLARE @totalsourceUpdateCount AS BIGINT
     SELECT @totalsourceUpdateCount = COUNT(*)
-                               FROM [xAnalytics_DW].[dm].[TDMA_1Fct_MemberFacility] a 
-                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Fct_MemberFacility] b ON (a.TR_ID = b.TR_ID and a.SYS_SourceDB = b.SYS_SourceDB);
+                               FROM [xAnalytics_DW].[dm].[TDMA_1Dim_Region] a 
+                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Dim_Region] b ON (a.Region_VID = b.Region_VID and a.SYS_SourceDB = b.SYS_SourceDB);
 
 
     -- Delete the updates (exist in temp and target) from the target.
     DECLARE @deleteUpdatedRecordsFromTarget AS NVARCHAR(4000) = N'DELETE ' + @targetTable + N' 
                                                                   FROM ' + @targetTable + N' a 
-                                                                  INNER JOIN ' + @tempTable + N' b ON (a.TR_ID = b.TR_ID and a.SYS_SourceDB = b.SYS_SourceDB);'
+                                                                  INNER JOIN ' + @tempTable + N' b ON (a.Region_VID = b.Region_VID and a.SYS_SourceDB = b.SYS_SourceDB);'
     EXECUTE (@deleteUpdatedRecordsFromTarget)
 
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
-    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberFacility;
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_Region;
 
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
-                                                               N' SELECT TR_ID
-      ,StartDate_Date_OID
-      ,Member_OID
-      ,Member_VID
-      ,Facility_OID
-      ,Facility_VID
-      ,MemberFacilityId
-      ,PrimaryFacility
-      ,Notes
-      ,LastUpdated
-      ,SystemUserId
-      ,StartDate
-      ,EndDate
+                                                               N' SELECT Region_VID
+      ,Region_FromDate
+      ,Region_ToDate
+      ,Region_OID
+      ,RegionID
+      ,RegionName
+      ,Description_01
       ,Active
-      ,GIGO_Flag
       ,SYS_SourceDB
       ,SYS_ETL_Timestamp
-      ,Member_Id
-      ,MemberFacility_RUNNO_INSERT
-      ,SYS_SourceDB_TR_ID
+      ,OBSOLETE__INDICATION
+      ,Region_RUNNO_INSERT
+      ,Region_RUNNO_UPDATE
+      ,SYS_SourceDB_Region_VID
        FROM ' + @tempTable + N';'
     EXECUTE (@insertRecordsFromTempToTarget)
 
     -- (For validation) Counting how many records are in the target after we make additions.
     DECLARE @targetCountAfterAdditions AS BIGINT
-    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_MemberFacility;
+    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_Region;
 
     -- (For validation) Counting how many records are in the temporary RunData table which shows us how many records we should expect to be inserted into the target.
     DECLARE @newRecordCount AS BIGINT
@@ -237,4 +225,4 @@ CREATE PROCEDURE dw.sp_Populate_MemberFacility AS
                    ,'N');
 GO
 
-EXEC dw.sp_Populate_MemberFacility
+EXEC dw.sp_Populate_Region
