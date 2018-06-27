@@ -1,4 +1,4 @@
-USE [xAnalytics_DW]
+USE [Analytics_DW]
 GO
 
 /****** Object:  Table [dm].[TDMA_1Dim_Alert_AlertCategory_AlertRule]    Script Date: 6/26/2018 10:53:47 AM ******/

@@ -1,4 +1,4 @@
-USE [xAnalytics_DW]
+USE [Analytics_DW]
 GO
 
 /****** Object:  Table [dw].[C_Client]    Script Date: 6/21/2018 4:09:39 PM ******/

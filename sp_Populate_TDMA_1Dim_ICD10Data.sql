@@ -52,13 +52,13 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
     DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Dim_ICD10Data';
 
     -- Temporary table used during the process of moving data from client table to target table.
-    DECLARE @tempTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_TDMA_1Dim_ICD10Data';
+    DECLARE @tempTable AS NVARCHAR(100) = N'Analytics_DW.dw.TEMP_TDMA_1Dim_ICD10Data';
 
     -- Target table.
-    DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Dim_ICD10Data';
+    DECLARE @targetTable AS NVARCHAR(100) = N'Analytics_DW.dm.TDMA_1Dim_ICD10Data';
 
     -- Temporary table used during data quality validation.
-    DECLARE @tempRunDataTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_RunData';
+    DECLARE @tempRunDataTable AS NVARCHAR(100) = N'Analytics_DW.dw.TEMP_RunData';
 
     -- The variable we will momentarily store each client database name in as we loop through our cursor.
     DECLARE @dbname AS NVARCHAR(50)
@@ -66,7 +66,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
     -- Checking the last time we captured data.
     DECLARE @lastRuntime AS DATETIME
     SELECT @lastRuntime = MASTER_LastRunTimestamp
-                          FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
+                          FROM [Analytics_DW].[dw].[LastRunTimestamp]
                           WHERE ID = 1;
 
     -- Truncate the temp table for ICD10Data.
@@ -75,7 +75,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
 
     -- The cursor used to loop through our list of clients to capture their database name.
     DECLARE dbc CURSOR FOR
-       SELECT SYS_SourceDB FROM xAnalytics_DW.dw.C_Client
+       SELECT SYS_SourceDB FROM Analytics_DW.dw.C_Client
 
     -- Opening our declared cursor.
     OPEN dbc
@@ -116,13 +116,13 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
 
     -- (For validation) Counting how many records are in the target before we make deletions.
     DECLARE @targetCountBeforeDeletes AS BIGINT
-    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_ICD10Data;
+    SELECT @targetCountBeforeDeletes = COUNT(*) FROM Analytics_DW.dm.TDMA_1Dim_ICD10Data;
 
     -- (For validation) Counts how many records are updates
     DECLARE @totalsourceUpdateCount AS BIGINT
     SELECT @totalsourceUpdateCount = COUNT(*)
-                               FROM [xAnalytics_DW].[dm].[TDMA_1Dim_ICD10Data] a 
-                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Dim_ICD10Data] b ON (a.ICD10Data_OID = b.ICD10Data_OID and a.SYS_SourceDB = b.SYS_SourceDB);
+                               FROM [Analytics_DW].[dm].[TDMA_1Dim_ICD10Data] a 
+                               INNER JOIN [Analytics_DW].[dw].[TEMP_TDMA_1Dim_ICD10Data] b ON (a.ICD10Data_OID = b.ICD10Data_OID and a.SYS_SourceDB = b.SYS_SourceDB);
 
 
     -- Delete the updates (exist in temp and target) from the target.
@@ -133,7 +133,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
 
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
-    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_ICD10Data;
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM Analytics_DW.dm.TDMA_1Dim_ICD10Data;
 
 
     -- Inserts all records from temp to target.
@@ -156,11 +156,11 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
 
     -- (For validation) Counting how many records are in the target after we make additions.
     DECLARE @targetCountAfterAdditions AS BIGINT
-    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Dim_ICD10Data;
+    SELECT @targetCountAfterAdditions = COUNT(*) FROM Analytics_DW.dm.TDMA_1Dim_ICD10Data;
 
     -- (For validation) Counting how many records are in the temporary RunData table which shows us how many records we should expect to be inserted into the target.
     DECLARE @newRecordCount AS BIGINT
-    SELECT @newRecordCount = SUM(Records_Captured) FROM [xAnalytics_DW].[dw].[TEMP_RunData];
+    SELECT @newRecordCount = SUM(Records_Captured) FROM [Analytics_DW].[dw].[TEMP_RunData];
 
     -- Truncate the temp table for RunData since it doesn't track the specific table and will be irrelevant since we run stored procedures back to back for every table.
     DECLARE @truncateRunDataTempTable AS NVARCHAR(4000) = 'TRUNCATE TABLE ' + @tempRunDataTable + N';'
@@ -173,7 +173,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
     -- The TotalRecordCountPassed and TotalUpdateCountPassed change depending on scenario.
     IF ((@targetCountAfterAdditions - @targetCountBeforeAdditions) = @newRecordCount)
         IF ((@targetCountBeforeDeletes - @targetCountBeforeAdditions) = @totalSourceUpdateCount)
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime
@@ -185,7 +185,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
                    ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
                    ,'Y');
         ELSE
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime
@@ -198,7 +198,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
                    ,'N');
     ELSE
         IF ((@targetCountBeforeDeletes - @targetCountBeforeAdditions) = @totalSourceUpdateCount)
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime
@@ -210,7 +210,7 @@ CREATE PROCEDURE dw.sp_Populate_ICD10Data AS
                    ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
                    ,'Y');
         ELSE
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime

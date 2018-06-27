@@ -109,13 +109,13 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
     DECLARE @sourceTable AS NVARCHAR(100) = N'TDMA_1Fct_C_DeviceReading';
 
     -- Temporary table used during the process of moving data from client table to target table.
-    DECLARE @tempTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_TDMA_1Fct_C_DeviceReading';
+    DECLARE @tempTable AS NVARCHAR(100) = N'Analytics_DW.dw.TEMP_TDMA_1Fct_C_DeviceReading';
 
     -- Target table.
-    DECLARE @targetTable AS NVARCHAR(100) = N'xAnalytics_DW.dm.TDMA_1Fct_C_DeviceReading';
+    DECLARE @targetTable AS NVARCHAR(100) = N'Analytics_DW.dm.TDMA_1Fct_C_DeviceReading';
 
     -- Temporary table used during data quality validation.
-    DECLARE @tempRunDataTable AS NVARCHAR(100) = N'xAnalytics_DW.dw.TEMP_RunData';
+    DECLARE @tempRunDataTable AS NVARCHAR(100) = N'Analytics_DW.dw.TEMP_RunData';
 
     -- The variable we will momentarily store each client database name in as we loop through our cursor.
     DECLARE @dbname AS NVARCHAR(50)
@@ -123,7 +123,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
     -- Checking the last time we captured data.
     DECLARE @lastRuntime AS DATETIME
     SELECT @lastRuntime = MASTER_LastRunTimestamp
-                          FROM [xAnalytics_DW].[dw].[LastRunTimestamp]
+                          FROM [Analytics_DW].[dw].[LastRunTimestamp]
                           WHERE ID = 1;
 
     -- Truncate the temp table for C_DeviceReading.
@@ -132,7 +132,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
 
     -- The cursor used to loop through our list of clients to capture their database name.
     DECLARE dbc CURSOR FOR
-       SELECT SYS_SourceDB FROM xAnalytics_DW.dw.C_Client
+       SELECT SYS_SourceDB FROM Analytics_DW.dw.C_Client
 
     -- Opening our declared cursor.
     OPEN dbc
@@ -173,13 +173,13 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
 
     -- (For validation) Counting how many records are in the target before we make deletions.
     DECLARE @targetCountBeforeDeletes AS BIGINT
-    SELECT @targetCountBeforeDeletes = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_C_DeviceReading;
+    SELECT @targetCountBeforeDeletes = COUNT(*) FROM Analytics_DW.dm.TDMA_1Fct_C_DeviceReading;
 
     -- (For validation) Counts how many records are updates
     DECLARE @totalsourceUpdateCount AS BIGINT
     SELECT @totalsourceUpdateCount = COUNT(*)
-                               FROM [xAnalytics_DW].[dm].[TDMA_1Fct_C_DeviceReading] a 
-                               INNER JOIN [xAnalytics_DW].[dw].[TEMP_TDMA_1Fct_C_DeviceReading] b ON (a.TR_ID = b.TR_ID and a.DeviceLog_SYS_SourceDB = b.DeviceLog_SYS_SourceDB);
+                               FROM [Analytics_DW].[dm].[TDMA_1Fct_C_DeviceReading] a 
+                               INNER JOIN [Analytics_DW].[dw].[TEMP_TDMA_1Fct_C_DeviceReading] b ON (a.TR_ID = b.TR_ID and a.DeviceLog_SYS_SourceDB = b.DeviceLog_SYS_SourceDB);
 
 
     -- Delete the updates (exist in temp and target) from the target.
@@ -190,7 +190,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
 
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
-    SELECT @targetCountBeforeAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_C_DeviceReading;
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM Analytics_DW.dm.TDMA_1Fct_C_DeviceReading;
 
     -- Inserts all records from temp to target.
     DECLARE @insertRecordsFromTempToTarget AS NVARCHAR(4000) = N'INSERT INTO ' + @targetTable + 
@@ -269,12 +269,12 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
 
     -- (For validation) Counting how many records are in the target after we make additions.
     DECLARE @targetCountAfterAdditions AS BIGINT
-    SELECT @targetCountAfterAdditions = COUNT(*) FROM xAnalytics_DW.dm.TDMA_1Fct_C_DeviceReading;
+    SELECT @targetCountAfterAdditions = COUNT(*) FROM Analytics_DW.dm.TDMA_1Fct_C_DeviceReading;
 
     -- (For validation) Counting records captured for each client in the temporary RunData table which shows us
     -- how many records we should expect to be inserted into the target.
     DECLARE @newRecordCount AS BIGINT
-    SELECT @newRecordCount = SUM(Records_Captured) FROM [xAnalytics_DW].[dw].[TEMP_RunData];
+    SELECT @newRecordCount = SUM(Records_Captured) FROM [Analytics_DW].[dw].[TEMP_RunData];
 
     -- Truncate the temp table for RunData since it doesn't track the specific table and will be irrelevant
     -- since we run stored procedures back to back for every table.
@@ -288,7 +288,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
     -- The TotalRecordCountPassed and TotalUpdateCountPassed change depending on scenario.
     IF ((@targetCountAfterAdditions - @targetCountBeforeAdditions) = @newRecordCount)
         IF ((@targetCountBeforeDeletes - @targetCountBeforeAdditions) = @totalSourceUpdateCount)
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime
@@ -300,7 +300,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
                    ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
                    ,'Y');
         ELSE
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime
@@ -313,7 +313,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
                    ,'N');
     ELSE
         IF ((@targetCountBeforeDeletes - @targetCountBeforeAdditions) = @totalSourceUpdateCount)
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime
@@ -325,7 +325,7 @@ CREATE PROCEDURE dw.sp_Populate_C_DeviceReading AS
                    ,@targetCountBeforeDeletes - @targetCountBeforeAdditions
                    ,'Y');
         ELSE
-            INSERT INTO [xAnalytics_DW].[dw].[RunData]
+            INSERT INTO [Analytics_DW].[dw].[RunData]
             VALUES (@sourceTable
                    ,@lastRuntime
                    ,@startRunTime

@@ -1,4 +1,4 @@
-USE [xAnalytics_DW]
+USE [Analytics_DW]
 GO
 
 /****** Object:  Table [dm].[TDMA_1Fct_RegionFacility]    Script Date: 6/27/2018 11:01:53 AM ******/

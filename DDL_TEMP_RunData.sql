@@ -1,4 +1,4 @@
-USE [xAnalytics_DW]
+USE [Analytics_DW]
 GO
 
 /****** Object:  Table [dw].[TEMP_RunData]    Script Date: 6/21/2018 3:59:47 PM ******/
