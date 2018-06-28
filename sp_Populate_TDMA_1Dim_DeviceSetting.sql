@@ -241,7 +241,7 @@ CREATE PROCEDURE dw.sp_Populate_DeviceSetting AS
 
     -- (For validation) Counting how many records are in the target before we make additions.
     DECLARE @targetCountBeforeAdditions AS BIGINT
-    SELECT @targetCountBeforeAdditions = COUNT(*) FROM Analytics_DW.dm.TDMA_1Fct_AssessmentTransmitLog;
+    SELECT @targetCountBeforeAdditions = COUNT(*) FROM Analytics_DW.dm.TDMA_1Dim_DeviceSetting;
 
 
     -- Inserts all records from temp to target.
